@@ -8,10 +8,14 @@ import net.javaguides.banking_app.mapper.AccountMapper;
 import net.javaguides.banking_app.repository.AccountDetailsRepository;
 import net.javaguides.banking_app.repository.AccountRepository;
 import net.javaguides.banking_app.repository.TransactionRepository;
+import net.javaguides.banking_app.security.JwtUtil;
 import net.javaguides.banking_app.service.AccountService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,14 +31,15 @@ public class AccountController {
     private AccountRepository accountRepository;
     private final TransactionRepository transactionRepo;
     private final AccountDetailsRepository accountDetailsRepo;
+    private final JwtUtil jwtUtil;
 
-
-    public AccountController(AccountService accountService, AccountRepository accountRepository, TransactionRepository transactionRepo, AccountDetailsRepository accountDetailsRepo) {
+    public AccountController(AccountService accountService, AccountRepository accountRepository, TransactionRepository transactionRepo, AccountDetailsRepository accountDetailsRepo, JwtUtil jwtUtil) {
 
         this.accountService = accountService;
         this.accountRepository = accountRepository;
         this.transactionRepo = transactionRepo;
         this.accountDetailsRepo = accountDetailsRepo;
+        this.jwtUtil = jwtUtil;
     }
 
     //Add account REST API
@@ -42,21 +47,30 @@ public class AccountController {
     public ResponseEntity<?> addAccount(@RequestBody Map<String, String> requestData) {
 
         String password = requestData.get("password");
+        String balanceStr = requestData.get("balance");
 
-        // Password validation: min 1 uppercase, 1 lowercase, 1 symbol, min 8 chars
+        if (password == null || balanceStr == null) {
+            return ResponseEntity.badRequest().body("Missing fields");
+        }
+
         if (!password.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+=\\-{};:'\",.<>?/]).{8,}$")) {
             return ResponseEntity.badRequest().body("Password must be at least 8 characters, include uppercase, lowercase, and a special symbol.");
         }
 
-        // Save to Accounts table
+        double balance;
+        try {
+            balance = Double.parseDouble(balanceStr);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body("Invalid balance format");
+        }
+
         AccountDto accountDto = new AccountDto();
         accountDto.setAccountHolderName(requestData.get("accountHolderName"));
-        accountDto.setBalance(Double.parseDouble(requestData.get("balance")));
+        accountDto.setBalance(balance);
         accountDto.setPassword(password);
 
         AccountDto savedAccount = accountService.createAccount(accountDto);
 
-        // Save to AccountDetails table
         AccountDetails details = new AccountDetails();
         details.setAccountNumber(savedAccount.getAccountNumber());
         details.setAccountHolderName(savedAccount.getAccountHolderName());
@@ -71,62 +85,14 @@ public class AccountController {
     }
 
 
-    @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody Map<String, String> loginData) {
-        String accountHolderName = loginData.get("accountHolderName");
-        String password = loginData.get("password");
 
-        Optional<Account> accountOptional = accountRepository.findAll()
-                .stream()
-                .filter(acc -> acc.getAccountHolderName().equals(accountHolderName))
-                .findFirst();
+    @GetMapping("/my-account")
+    public ResponseEntity<?> getAccountDetails(@RequestHeader("Authorization") String authHeader) {
 
-        if (accountOptional.isPresent()) {
-            Account account = accountOptional.get();
+        String token = authHeader.substring(7); // Remove "Bearer "
+        String accountHolderName = jwtUtil.extractUsername(token);
 
-            if (account.getPassword().equals(password)) {
-                return ResponseEntity.ok("Login Successful...");
-            } else {
-                return ResponseEntity.status(401).body("Invalid credentials...");
-            }
-        } else {
-            return ResponseEntity.status(401).body("Invalid credentials...");
-        }
-    }
-
-
-
-    @PostMapping("/deposit")
-    public ResponseEntity<String> deposit(@RequestBody Map<String, Object> requestData) {
-        String name = (String) requestData.get("accountHolderName");
-        String password = (String) requestData.get("password");
-        double amount = Double.parseDouble(requestData.get("amount").toString());
-
-        Optional<Account> accountOptional = accountRepository.findAll().stream()
-                .filter(acc -> acc.getAccountHolderName().equals(name) && acc.getPassword().equals(password))
-                .findFirst();
-
-        if (accountOptional.isPresent()) {
-            Account account = accountOptional.get();
-            account.setBalance(account.getBalance() + amount);
-            accountRepository.save(account);
-            return ResponseEntity.ok("Deposit successful");
-        } else {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
-        }
-    }
-
-
-    @PostMapping("/withdraw")
-    public ResponseEntity<String> withdrawAmount(@RequestBody Map<String, Object> requestData) {
-        String accountHolderName = (String) requestData.get("accountHolderName");
-        String password = (String) requestData.get("password");
-        double amount = Double.parseDouble(requestData.get("amount").toString());
-
-        // Find account by name
-        Optional<Account> optionalAccount = accountRepository.findAll().stream()
-                .filter(acc -> acc.getAccountHolderName().equals(accountHolderName))
-                .findFirst();
+        Optional<Account> optionalAccount = accountRepository.findByAccountHolderName(accountHolderName);
 
         if (optionalAccount.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
@@ -134,17 +100,56 @@ public class AccountController {
 
         Account account = optionalAccount.get();
 
-        // Verify password
-        if (!account.getPassword().equals(password)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Incorrect password");
+        Map<String, Object> response = new HashMap<>();
+        response.put("accountNumber", account.getAccountNumber());
+        response.put("accountHolderName", account.getAccountHolderName());
+        response.put("balance", account.getBalance());
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/deposit")
+    public ResponseEntity<String> deposit(@RequestHeader("Authorization") String authHeader,
+                                          @RequestBody Map<String, Object> requestData) {
+        String token = authHeader.substring(7);
+        String accountHolderName = jwtUtil.extractUsername(token);
+        double amount = Double.parseDouble(requestData.get("amount").toString());
+
+        Optional<Account> optionalAccount = accountRepository.findByAccountHolderName(accountHolderName);
+
+        if (optionalAccount.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
         }
 
-        // Check balance
+        Account account = optionalAccount.get();
+        account.setBalance(account.getBalance() + amount);
+        accountRepository.save(account);
+
+        return ResponseEntity.ok("Deposit successful");
+    }
+
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<String> withdrawAmount(@RequestBody Map<String, Object> requestData) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String accountHolderName = auth.getName();  // Extracted from validated token
+
+        double amount = Double.parseDouble(requestData.get("amount").toString());
+
+        Optional<Account> optionalAccount = accountRepository.findByAccountHolderName(accountHolderName);
+
+        if (optionalAccount.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+        }
+
+        Account account = optionalAccount.get();
+
         if (account.getBalance() < amount) {
             return ResponseEntity.badRequest().body("Insufficient Balance");
         }
 
-        // Perform withdraw
         account.setBalance(account.getBalance() - amount);
         accountRepository.save(account);
 
@@ -152,47 +157,49 @@ public class AccountController {
     }
 
 
-    @DeleteMapping("/delete")
-    public ResponseEntity<String> deleteAccount(@RequestBody Map<String, String> requestData) {
-        String name = requestData.get("accountHolderName");
-        String password = requestData.get("password");
 
-        Optional<Account> accountOptional = accountRepository.findAll().stream()
-                .filter(acc -> acc.getAccountHolderName().equals(name) && acc.getPassword().equals(password))
-                .findFirst();
+    @DeleteMapping("/delete")
+    public ResponseEntity<String> deleteAccount(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.substring(7); // Remove "Bearer "
+        String accountHolderName = jwtUtil.extractUsername(token);
+
+        Optional<Account> accountOptional = accountRepository.findByAccountHolderName(accountHolderName);
 
         if (accountOptional.isPresent()) {
             Account account = accountOptional.get();
             accountRepository.delete(account);
+
+            // Also delete account details if available
+            Optional<AccountDetails> detailsOptional = accountDetailsRepo.findByAccountNumber(account.getAccountNumber());
+            detailsOptional.ifPresent(accountDetailsRepo::delete);
+
             return ResponseEntity.ok("Account deleted successfully");
         } else {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
         }
     }
 
+
+
     //Transfer or withdraw money from the account of another person
     @PostMapping("/transfer")
-    public ResponseEntity<String> transferMoney(@RequestBody Map<String, Object> requestData) {
+    public ResponseEntity<String> transferMoney(@RequestHeader("Authorization") String authHeader,
+                                                @RequestBody Map<String, Object> requestData) {
 
-        String senderName = (String) requestData.get("accountHolderName");
-        String senderPassword = (String) requestData.get("password");
+        String token = authHeader.substring(7);
+        String senderName = jwtUtil.extractUsername(token); // extract from JWT
+
         String recipientAccountNumber = (String) requestData.get("recipientAccountNumber");
         double amount = Double.parseDouble(requestData.get("amount").toString());
 
-        Optional<Account> senderOptional = accountRepository.findAll().stream()
-                .filter(acc -> acc.getAccountHolderName().equals(senderName) && acc.getPassword().equals(senderPassword))
-                .findFirst();
-
+        Optional<Account> senderOptional = accountRepository.findByAccountHolderName(senderName);
         if (senderOptional.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid sender credentials");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid sender");
         }
 
         Account sender = senderOptional.get();
 
-        Optional<Account> recipientOptional = accountRepository.findAll().stream()
-                .filter(acc -> acc.getAccountNumber().equals(recipientAccountNumber))
-                .findFirst();
-
+        Optional<Account> recipientOptional = accountRepository.findByAccountNumber(recipientAccountNumber);
         if (recipientOptional.isEmpty()) {
             return ResponseEntity.badRequest().body("Recipient account not found");
         }
@@ -203,14 +210,14 @@ public class AccountController {
             return ResponseEntity.badRequest().body("Insufficient funds");
         }
 
-        // Update balances
+        // Perform transfer
         sender.setBalance(sender.getBalance() - amount);
         recipient.setBalance(recipient.getBalance() + amount);
 
         accountRepository.save(sender);
         accountRepository.save(recipient);
 
-        // Save transaction records
+        // Log transactions
         Transaction senderTxn = new Transaction();
         senderTxn.setAccountNumber(sender.getAccountNumber());
         senderTxn.setType("Transfer Sent");
@@ -228,20 +235,18 @@ public class AccountController {
         return ResponseEntity.ok("Transfer successful");
     }
 
-    @PostMapping("/view-account")
-    public ResponseEntity<Map<String, Object>> viewAccount(@RequestBody Map<String, String> requestData) {
 
-        String accountHolderName = requestData.get("accountHolderName");
-        String password = requestData.get("password");
+    @GetMapping("/view-account")
+    public ResponseEntity<?> viewAccount(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.substring(7); // remove "Bearer "
+        String accountHolderName = jwtUtil.extractUsername(token);
 
-        // Find by account_holder_name
         Optional<AccountDetails> detailsOptional = accountDetailsRepo.findAll().stream()
-                .filter(details -> details.getAccountHolderName().equals(accountHolderName)
-                        && details.getPassword().equals(password))
+                .filter(details -> details.getAccountHolderName().equals(accountHolderName))
                 .findFirst();
 
         if (detailsOptional.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account details not found");
         }
 
         AccountDetails details = detailsOptional.get();
@@ -255,4 +260,5 @@ public class AccountController {
 
         return ResponseEntity.ok(response);
     }
+
 }

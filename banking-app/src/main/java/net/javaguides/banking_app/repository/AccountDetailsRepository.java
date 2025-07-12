@@ -7,4 +7,7 @@ import java.util.Optional;
 
 public interface AccountDetailsRepository extends JpaRepository<AccountDetails, String> {
     Optional<AccountDetails> findByAccountHolderNameAndPassword(String accountHolderName, String password);
+
+    Optional<AccountDetails> findByAccountNumber(String accountNumber);
+
 }
