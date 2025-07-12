@@ -1,23 +1,22 @@
 Banking App Backend (Spring Boot)
 This is the Spring Boot backend for the full-stack banking application. It offers RESTful APIs for account management, transactions, and secure JWT-based authentication.
 
-✨ Features
-✅ User Registration
+Features
+User Registration
 
-🔑 Secure Login with JWT Token
+Secure Login with JWT Token
 
-💳 Deposit / Withdraw APIs
+Deposit and Withdraw APIs
 
-💸 Money Transfer API
+Money Transfer API
 
-👤 Account Details Management (email, address, state)
+Account Details Management (email, address, state)
 
-🧾 View Account Info (via token)
+View Account Info (via token)
 
-❌ Delete Account with Cleanup
+Delete Account with Cleanup
 
-📜 JWT Expiry and Validation Handling
-
+JWT Expiry and Validation Handling
 🛠️ Tech Stack
 Backend: Spring Boot, Java
 
@@ -26,34 +25,34 @@ Security: Spring Security with JWT
 Database: MySQL (via Spring Data JPA)
 
 API Testing: Postman
-
-🧰 Tools Used
+Tools Used
 🧪 Postman – Testing backend APIs (login, transfer, delete, etc.)
 
-🗃️ MySQL Workbench / CLI – Managing account and transaction data
+💾 MySQL Workbench / CLI – Managing account and transaction data
 
-💻 IntelliJ IDEA – Backend development
+🧠 IntelliJ IDEA – Backend development
 
-🧑‍💻 VS Code – Frontend development
+💻 VS Code – Frontend development
 
-🖥️ Frontend Repository
+🌐 Frontend Repository
 👉 Check out the frontend repo built with React.js here:
 https://github.com/Esther-Graceia-Precious/banking-frontend-react
 
-🚀 Getting Started
-To run the backend locally:
+🚀 Getting Started – Run the Backend Locally
+Clone the repository:
 
 bash
 Copy
 Edit
 git clone https://github.com/Esther-Graceia-Precious/banking-backend-springboot.git
 cd banking-app-backend
-Update your application.properties file with your MySQL credentials, then run the app using:
+Update application.properties with your MySQL credentials.
 
-bash
-Copy
-Edit
+Run the application:
+
 ./mvnw spring-boot:run
+
+
 🔗 Sample API Endpoints
 🛡️ Endpoints marked with (auth required) need the header:
 Authorization: Bearer <JWT token>
