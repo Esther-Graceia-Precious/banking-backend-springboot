@@ -58,11 +58,13 @@ Edit
 🛡️ Endpoints marked with (auth required) need the header:
 Authorization: Bearer <JWT token>
 
-Method	Endpoint	Description
-POST	/auth/login	Login and receive JWT
-POST	/api/accounts	Register a new account
-POST	/api/accounts/deposit	Deposit funds (auth required)
-POST	/api/accounts/withdraw	Withdraw funds (auth required)
-POST	/api/accounts/transfer	Transfer to another account
-GET	/api/accounts/view-account	View account info (auth required)
-DELETE	/api/accounts/delete	Delete account (auth required)
+| Method | Endpoint                        | Description                           |
+|--------|---------------------------------|---------------------------------------|
+| POST   | /auth/login                     | Login and receive JWT                 |
+| POST   | /api/accounts                   | Register a new account                |
+| POST   | /api/accounts/deposit           | Deposit funds (**auth required**)     |
+| POST   | /api/accounts/withdraw          | Withdraw funds (**auth required**)    |
+| POST   | /api/accounts/transfer          | Transfer to another account           |
+| GET    | /api/accounts/view-account      | View account info (**auth required**) |
+| DELETE | /api/accounts/delete            | Delete account (**auth required**)    |
+
