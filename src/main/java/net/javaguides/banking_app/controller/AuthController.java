@@ -9,8 +9,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins =
-        {"http://localhost:5173", "https://6896e4ec3f756d5eb97140c5--banking-portal.netlify.app/"})
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://banking-portal.netlify.app"
+})
 @RestController
 @RequestMapping("/auth")
 public class AuthController {

@@ -22,8 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@CrossOrigin(origins =
-        {"http://localhost:5173", "https://6896e4ec3f756d5eb97140c5--banking-portal.netlify.app/"})
+@CrossOrigin(origins = {
+        "http://localhost:5173",
+        "https://banking-portal.netlify.app"
+})
 @RestController
 @RequestMapping("/api/accounts")
 public class AccountController {
